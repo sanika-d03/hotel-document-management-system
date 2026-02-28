@@ -14,13 +14,15 @@ import { useNavigate } from "react-router-dom";
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const navigate = useNavigate();
 
-  // 🔹 edit states
+  // 🔹 Edit states
   const [showEdit, setShowEdit] = useState(false);
   const [editUserId, setEditUserId] = useState(null);
   const [editEmail, setEditEmail] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editMobile, setEditMobile] = useState(""); // ✅ मोबाईलसाठी नवीन स्टेट
+  const [editEmpId, setEditEmpId] = useState(""); // ✅ एम्प्लॉई आयडीसाठी नवीन स्टेट
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -46,76 +48,95 @@ const ManageUsers = () => {
     }
   };
 
-  // 🔹 open edit modal
   const handleEditOpen = (user) => {
     setEditUserId(user.id);
     setEditEmail(user.email);
+    setEditName(user.name || "");
+    setEditMobile(user.mobile || ""); // ✅ डेटा लोड करा
+    setEditEmpId(user.employeeId || ""); // ✅ डेटा लोड करा
     setShowEdit(true);
   };
 
-  // 🔹 update user
   const handleUpdate = async () => {
-    await updateDoc(doc(db, "users", editUserId), {
-      email: editEmail,
-    });
+    try {
+      await updateDoc(doc(db, "users", editUserId), {
+        email: editEmail,
+        name: editName,
+        mobile: editMobile, // ✅ डेटाबेसमध्ये अपडेट करा
+        employeeId: editEmpId, // ✅ डेटाबेसमध्ये अपडेट करा
+      });
 
-    alert("User updated successfully ✅");
-    setShowEdit(false);
-    fetchUsers();
+      alert("User updated successfully ✅");
+      setShowEdit(false);
+      fetchUsers();
+    } catch (err) {
+      alert("Update failed ❌");
+    }
   };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <p className="text-gray-500 text-lg animate-pulse">
-          Loading users...
+        <p className="text-gray-500 text-lg animate-pulse font-black uppercase tracking-widest">
+          Syncing Employee Database...
         </p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-
-      {/* 🔙 Back Button */}
+    <div className="p-6 max-w-6xl mx-auto">
       <button
         onClick={() => navigate("/admin/dashboard")}
-        className="text-sm text-blue-600 font-medium mb-4 hover:underline"
+        className="text-sm text-blue-600 font-bold mb-4 hover:underline flex items-center"
       >
-        ← Back
+        ← Back to Dashboard
       </button>
 
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-        👥 Manage Users
-      </h2>
+      <header className="mb-8 text-center">
+        <h2 className="text-3xl font-black text-slate-800 uppercase italic tracking-tighter">
+          👥 Manage Employees
+        </h2>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Active Staff Directory</p>
+      </header>
 
-      <div className="overflow-x-auto bg-white shadow-lg rounded-xl border">
+      <div className="overflow-x-auto bg-white shadow-2xl rounded-3xl border border-slate-200 overflow-hidden">
         <table className="min-w-full text-sm text-left">
-          <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
+          <thead className="bg-slate-900 text-white uppercase text-[10px] font-black tracking-widest">
             <tr>
-              <th className="px-6 py-3">Email</th>
-              <th className="px-6 py-3 text-center">Actions</th>
+              <th className="px-6 py-5">ID</th>
+              <th className="px-6 py-5">Employee Name</th>
+              <th className="px-6 py-5">Contact & Email</th>
+              <th className="px-6 py-5 text-center">Actions</th>
             </tr>
           </thead>
 
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-slate-100">
             {users.map(user => (
-              <tr key={user.id} className="hover:bg-gray-50 transition">
-                <td className="px-6 py-4 font-medium">
-                  {user.email}
+              <tr key={user.id} className="hover:bg-slate-50 transition-all group">
+                <td className="px-6 py-4 font-black text-blue-600 italic">
+                  {user.employeeId || "No ID"}
+                </td>
+                <td className="px-6 py-4">
+                  <p className="font-black text-slate-800 uppercase leading-none">{user.name || "N/A"}</p>
+                  <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase">Role: Staff</p>
+                </td>
+                <td className="px-6 py-4">
+                  <p className="font-bold text-slate-700">{user.mobile || "No Mobile"}</p>
+                  <p className="text-xs text-slate-400">{user.email}</p>
                 </td>
 
-                <td className="px-6 py-4 text-center space-x-3">
+                <td className="px-6 py-4 text-center space-x-2">
                   <button
                     onClick={() => handleEditOpen(user)}
-                    className="px-4 py-1.5 text-sm rounded-md bg-yellow-400 text-white hover:bg-yellow-500"
+                    className="px-4 py-2 text-[10px] font-black uppercase rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all border border-emerald-100"
                   >
                     Edit
                   </button>
 
                   <button
                     onClick={() => handleDelete(user.id)}
-                    className="px-4 py-1.5 text-sm rounded-md bg-red-500 text-white hover:bg-red-600"
+                    className="px-4 py-2 text-[10px] font-black uppercase rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-100"
                   >
                     Delete
                   </button>
@@ -125,8 +146,8 @@ const ManageUsers = () => {
 
             {users.length === 0 && (
               <tr>
-                <td colSpan="2" className="text-center py-6 text-gray-400">
-                  No users found
+                <td colSpan="4" className="text-center py-20">
+                   <p className="text-slate-300 font-black italic uppercase text-2xl">No Staff Registered</p>
                 </td>
               </tr>
             )}
@@ -137,47 +158,79 @@ const ManageUsers = () => {
       {/* 🔹 EDIT MODAL */}
       {showEdit && (
         <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+          className="fixed inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm z-50 p-4"
           onClick={() => setShowEdit(false)}
         >
           <div
-            className="bg-white rounded-xl shadow-2xl w-[400px] p-6 relative animate-fadeIn"
+            className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md p-8 relative animate-fadeIn border-t-[12px] border-blue-600"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">
-              ✏️ Edit User
+            <h3 className="text-2xl font-black text-slate-800 mb-8 text-center uppercase italic tracking-tighter">
+              Update Employee
             </h3>
 
-            <input
-              type="email"
-              value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-              className="w-full border px-4 py-2 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter new email"
-            />
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Emp ID</label>
+                  <input
+                    type="text"
+                    value={editEmpId}
+                    onChange={(e) => setEditEmpId(e.target.value)}
+                    className="w-full border-2 border-slate-100 px-4 py-3 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Mobile</label>
+                  <input
+                    type="tel"
+                    maxLength="10"
+                    value={editMobile}
+                    onChange={(e) => setEditMobile(e.target.value)}
+                    className="w-full border-2 border-slate-100 px-4 py-3 rounded-2xl focus:border-blue-500 outline-none font-bold text-slate-700"
+                  />
+                </div>
+              </div>
 
-            <div className="flex justify-between mt-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Full Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full border-2 border-slate-100 px-4 py-3 rounded-2xl focus:border-blue-500 outline-none font-bold uppercase text-slate-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Email Address</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full border-2 border-slate-100 px-4 py-3 rounded-2xl focus:border-blue-500 outline-none font-medium text-slate-400 bg-slate-50"
+                  disabled // सुरक्षिततेसाठी ईमेल बदलणे ब्लॉक केले आहे
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-4 mt-10">
               <button
                 onClick={() => setShowEdit(false)}
-                className="px-4 py-2 rounded-lg bg-gray-300 hover:bg-gray-400 transition"
+                className="flex-1 py-4 rounded-2xl bg-slate-100 text-slate-500 font-black uppercase text-xs hover:bg-slate-200 transition"
               >
                 Cancel
               </button>
-
               <button
                 onClick={handleUpdate}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-black uppercase text-xs hover:bg-black transition shadow-lg shadow-blue-200"
               >
-                Update
+                Save Updates
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <p className="text-xs text-gray-400 text-center mt-6">
-        Only users with role <span className="font-semibold">USER</span> are shown
-      </p>
     </div>
   );
 };

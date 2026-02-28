@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore"; // Added getDoc
 import { db } from "../firebase";
 
 const UploadDocuments = () => {
@@ -10,60 +10,38 @@ const UploadDocuments = () => {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [uploadedDocs, setUploadedDocs] = useState([]); // Track multiple uploads
 
   const navigate = useNavigate();
 
+  // Load user session and check for existing documents
   useEffect(() => {
     const storedId = localStorage.getItem("currentUserId");
     if (!storedId) {
       alert("No user session found. Please fill details first.");
       navigate("/credentials");
-    } else {
-      setUserId(storedId);
+      return;
     }
+    setUserId(storedId);
+    fetchExistingDocs(storedId);
   }, [navigate]);
+
+  const fetchExistingDocs = async (id) => {
+    const docRef = doc(db, "userDocuments", id);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      setUploadedDocs(Object.keys(docSnap.data().documents || {}));
+    }
+  };
 
   const handleFileChange = (e) => {
     if (!e.target.files || !e.target.files[0]) return;
-
     const selectedFile = e.target.files[0];
-
-    // 🔒 STRICT validation (very important for Supabase)
-    const maxSizeMB = 3; // reduce timeout issues
-    if (selectedFile.size > maxSizeMB * 1024 * 1024) {
-      alert("File must be less than 3MB (WhatsApp images are often too large)");
+    if (selectedFile.size > 3 * 1024 * 1024) {
+      alert("File must be less than 3MB");
       return;
     }
-
-    const allowedTypes = ["image/jpeg", "image/png", "application/pdf"];
-    if (!allowedTypes.includes(selectedFile.type)) {
-      alert("Only JPG, PNG or PDF files are allowed");
-      return;
-    }
-
     setFile(selectedFile);
-  };
-
-  // 🔁 Retry Upload Function (fixes timeout)
-  const uploadWithRetry = async (filePath, file, retries = 2) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from("hotel-documents")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: file.type,
-        });
-
-      if (error) throw error;
-      return data;
-    } catch (err) {
-      if (retries > 0) {
-        console.warn("Retrying upload...", retries);
-        return uploadWithRetry(filePath, file, retries - 1);
-      }
-      throw err;
-    }
   };
 
   const handleUpload = async () => {
@@ -72,148 +50,125 @@ const UploadDocuments = () => {
       return;
     }
 
-    if (!userId) {
-      alert("User session missing. Restart the process.");
-      return;
-    }
-
     try {
       setLoading(true);
-
       const fileExt = file.name.split(".").pop();
-      const timestamp = Date.now();
-      const safeDocType = documentType.toLowerCase();
-      const fileName = `${safeDocType}_${timestamp}.${fileExt}`;
+      const fileName = `${documentType.toLowerCase()}_${Date.now()}.${fileExt}`;
       const filePath = `${userId}/${fileName}`;
 
-      console.log("Uploading to:", filePath);
-      console.log("File size (KB):", (file.size / 1024).toFixed(2));
+      const { error } = await supabase.storage.from("hotel-documents").upload(filePath, file);
+      if (error) throw error;
 
-      // 🚀 Upload with retry (MAIN FIX)
-      await uploadWithRetry(filePath, file);
-
-      // 🌐 Get public URL
-      const { data } = supabase.storage
-        .from("hotel-documents")
-        .getPublicUrl(filePath);
-
-      const publicUrl = data.publicUrl;
-
-      if (!publicUrl) {
-        throw new Error("Public URL generation failed");
-      }
-
-      console.log("Public URL:", publicUrl);
-
-      // 🗄 Save metadata in Firestore
+      const { data } = supabase.storage.from("hotel-documents").getPublicUrl(filePath);
+      
       const docRef = doc(db, "userDocuments", userId);
-
-      await setDoc(
-        docRef,
-        {
-          documents: {
-            [safeDocType]: {
-              documentNumber,
-              filePath,
-              fileUrl: publicUrl,
-              fileName: fileName,
-              uploadedAt: serverTimestamp(),
-            },
+      await setDoc(docRef, {
+        documents: {
+          [documentType.toLowerCase()]: {
+            documentNumber,
+            filePath,
+            fileUrl: data.publicUrl,
+            uploadedAt: serverTimestamp(),
           },
         },
-        { merge: true }
-      );
+      }, { merge: true });
 
-      alert("Document uploaded successfully ✅");
-
-      // Reset form
+      alert(`${documentType.toUpperCase()} Uploaded Successfully!`);
+      
+      // Update local state to show the list
+      setUploadedDocs(prev => [...new Set([...prev, documentType.toLowerCase()])]);
+      
+      // Reset fields for the NEXT document
       setDocumentType("");
       setDocumentNumber("");
       setFile(null);
-    } catch (err) {
-      console.error("FINAL Upload Error:", err);
 
-      if (err.message.includes("Failed to fetch")) {
-        alert(
-          "Network timeout with Supabase.\n\nFix:\n1. Turn OFF VPN\n2. Use Mobile Hotspot\n3. Try smaller image (<2MB)"
-        );
-      } else {
-        alert("Upload failed: " + err.message);
-      }
+    } catch (err) {
+      alert("Upload failed: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 border">
-        <button
-          onClick={() => navigate("/credentials")}
-          className="text-sm text-blue-600 font-medium mb-4 hover:underline"
-        >
-          ← Back
-        </button>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans text-slate-900">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+        
+        <div className="bg-slate-800 p-6 flex justify-between items-center">
+          <button onClick={() => navigate("/credentials")} className="text-[10px] font-black uppercase text-slate-400">← Back</button>
+          <h2 className="text-sm font-black text-white uppercase tracking-[3px]">Identity Verification</h2>
+          <div className="w-10"></div>
+        </div>
 
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
-          📄 Upload Documents
-        </h2>
+        <div className="p-8">
+          {/* MULTI-DOCUMENT TRACKER */}
+          {uploadedDocs.length > 0 && (
+            <div className="mb-6 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+              <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Verified Documents:</p>
+              <div className="flex flex-wrap gap-2">
+                {uploadedDocs.map(docName => (
+                  <span key={docName} className="px-2 py-1 bg-white border border-emerald-200 text-emerald-700 text-[9px] font-bold rounded-lg uppercase">
+                    ✓ {docName}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
-        <p className="text-[10px] text-gray-400 text-center mb-4">
-          Session: {userId}
-        </p>
+          <div className="space-y-5">
+            <div>
+              <label className="block text-[10px] font-black text-blue-600 uppercase mb-1">Select Identity Document</label>
+              <select
+                className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold bg-slate-50 outline-none focus:border-blue-400"
+                value={documentType}
+                onChange={(e) => setDocumentType(e.target.value)}
+              >
+                <option value="">Choose Document Type</option>
+                <option value="aadhaar" disabled={uploadedDocs.includes("aadhaar")}>Aadhaar Card {uploadedDocs.includes("aadhaar") && "(Uploaded)"}</option>
+                <option value="pan" disabled={uploadedDocs.includes("pan")}>PAN Card {uploadedDocs.includes("pan") && "(Uploaded)"}</option>
+                <option value="license" disabled={uploadedDocs.includes("license")}>Driving License</option>
+                <option value="passport" disabled={uploadedDocs.includes("passport")}>Passport</option>
+              </select>
+            </div>
 
-        <label className="block text-sm font-medium text-gray-600 mb-1">
-          Document Type
-        </label>
-        <select
-          className="w-full border px-4 py-2 rounded-lg mb-4"
-          value={documentType}
-          onChange={(e) => setDocumentType(e.target.value)}
-        >
-          <option value="">Select Document</option>
-          <option value="aadhaar">Aadhaar Card</option>
-          <option value="pan">PAN Card</option>
-          <option value="license">Driving License</option>
-          <option value="passport">Passport</option>
-        </select>
+            <div>
+              <label className="block text-[10px] font-black text-blue-600 uppercase mb-1">Document Number</label>
+              <input
+                type="text"
+                placeholder="Ex: 0000 0000 0000"
+                className="w-full border-2 border-slate-100 p-3 rounded-xl bg-slate-50 font-bold"
+                value={documentNumber}
+                onChange={(e) => setDocumentNumber(e.target.value)}
+              />
+            </div>
 
-        <label className="block text-sm font-medium text-gray-600 mb-1">
-          Document Number
-        </label>
-        <input
-          type="text"
-          placeholder="Enter document number"
-          className="w-full border px-4 py-2 rounded-lg mb-4"
-          value={documentNumber}
-          onChange={(e) => setDocumentNumber(e.target.value)}
-        />
+            <div className="p-5 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+              <input type="file" accept="image/*,.pdf" onChange={handleFileChange} className="w-full text-xs text-slate-500 file:bg-slate-800 file:text-white file:rounded-full file:border-0 file:px-4 file:py-1 font-bold" />
+            </div>
 
-        <label className="block text-sm font-medium text-gray-600 mb-1">
-          Upload File (JPG, PNG, PDF - Max 3MB)
-        </label>
-        <input
-          type="file"
-          accept="image/*,.pdf"
-          onChange={handleFileChange}
-          className="w-full border px-3 py-2 rounded-lg mb-3"
-        />
+            <div className="pt-4 space-y-3">
+              <button
+                onClick={handleUpload}
+                disabled={loading}
+                className="w-full py-4 bg-blue-600 text-white rounded-xl font-black uppercase text-xs tracking-[2px] shadow-lg hover:bg-blue-700 disabled:bg-slate-300"
+              >
+                {loading ? "Uploading..." : "+ Upload This Document"}
+              </button>
 
-        {file && (
-          <p className="text-xs text-gray-500 mb-4">
-            📎 {file.name} ({(file.size / 1024).toFixed(1)} KB)
-          </p>
-        )}
-
-        <button
-          onClick={handleUpload}
-          disabled={loading}
-          className={`w-full py-3 rounded-lg font-semibold text-white ${
-            loading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
-          }`}
-        >
-          {loading ? "Uploading..." : "Confirm & Upload"}
-        </button>
+              {/* FINISH BUTTON - Only shows if at least 1 doc is uploaded */}
+              {uploadedDocs.length > 0 && (
+                <button
+                  onClick={() => navigate("/userdashboard")}
+                  className="w-full py-4 bg-black text-white rounded-xl font-black uppercase text-xs tracking-[2px] shadow-lg animate-bounce"
+                >
+                  Finish & Go to Dashboard
+                </button>
+              )}
+              
+              <button onClick={() => navigate("/userdashboard")} className="w-full text-[10px] font-black text-slate-400 uppercase">Skip for now</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
