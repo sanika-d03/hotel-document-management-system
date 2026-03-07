@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore"; // Added getDoc
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore"; 
 import { db } from "../firebase";
 
 const UploadDocuments = () => {
@@ -10,11 +10,10 @@ const UploadDocuments = () => {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
-  const [uploadedDocs, setUploadedDocs] = useState([]); // Track multiple uploads
+  const [uploadedDocs, setUploadedDocs] = useState([]);
 
   const navigate = useNavigate();
 
-  // Load user session and check for existing documents
   useEffect(() => {
     const storedId = localStorage.getItem("currentUserId");
     if (!storedId) {
@@ -74,11 +73,7 @@ const UploadDocuments = () => {
       }, { merge: true });
 
       alert(`${documentType.toUpperCase()} Uploaded Successfully!`);
-      
-      // Update local state to show the list
       setUploadedDocs(prev => [...new Set([...prev, documentType.toLowerCase()])]);
-      
-      // Reset fields for the NEXT document
       setDocumentType("");
       setDocumentNumber("");
       setFile(null);
@@ -91,23 +86,25 @@ const UploadDocuments = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans text-slate-900">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-3 md:p-6 font-sans text-slate-900">
+      {/* Changed: Adjusted max-width and border radius for mobile */}
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
         
-        <div className="bg-slate-800 p-6 flex justify-between items-center">
-          <button onClick={() => navigate("/credentials")} className="text-[10px] font-black uppercase text-slate-400">← Back</button>
-          <h2 className="text-sm font-black text-white uppercase tracking-[3px]">Identity Verification</h2>
+        {/* Header: Responsive text sizes */}
+        <div className="bg-slate-800 p-5 md:p-6 flex justify-between items-center">
+          <button onClick={() => navigate("/credentials")} className="text-[10px] font-black uppercase text-slate-400 hover:text-white transition-colors">← Back</button>
+          <h2 className="text-[11px] md:text-sm font-black text-white uppercase tracking-[2px] md:tracking-[3px]">Identity Verification</h2>
           <div className="w-10"></div>
         </div>
 
-        <div className="p-8">
-          {/* MULTI-DOCUMENT TRACKER */}
+        <div className="p-6 md:p-8">
+          {/* MULTI-DOCUMENT TRACKER: More compact on small screens */}
           {uploadedDocs.length > 0 && (
-            <div className="mb-6 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
-              <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Verified Documents:</p>
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+              <p className="text-[9px] font-black text-emerald-600 uppercase mb-2">Verified Documents:</p>
               <div className="flex flex-wrap gap-2">
                 {uploadedDocs.map(docName => (
-                  <span key={docName} className="px-2 py-1 bg-white border border-emerald-200 text-emerald-700 text-[9px] font-bold rounded-lg uppercase">
+                  <span key={docName} className="px-2.5 py-1 bg-white border border-emerald-200 text-emerald-700 text-[8px] md:text-[9px] font-black rounded-lg uppercase shadow-sm">
                     ✓ {docName}
                   </span>
                 ))}
@@ -115,11 +112,11 @@ const UploadDocuments = () => {
             </div>
           )}
 
-          <div className="space-y-5">
+          <div className="space-y-6">
             <div>
-              <label className="block text-[10px] font-black text-blue-600 uppercase mb-1">Select Identity Document</label>
+              <label className="block text-[10px] font-black text-blue-600 uppercase mb-1 ml-1">Select Identity Document</label>
               <select
-                className="w-full border-2 border-slate-100 p-3 rounded-xl font-bold bg-slate-50 outline-none focus:border-blue-400"
+                className="w-full border-2 border-slate-100 p-3.5 rounded-xl font-bold bg-slate-50 outline-none focus:border-blue-400 text-sm transition-all"
                 value={documentType}
                 onChange={(e) => setDocumentType(e.target.value)}
               >
@@ -132,40 +129,51 @@ const UploadDocuments = () => {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-blue-600 uppercase mb-1">Document Number</label>
+              <label className="block text-[10px] font-black text-blue-600 uppercase mb-1 ml-1">Document Number</label>
               <input
                 type="text"
                 placeholder="Ex: 0000 0000 0000"
-                className="w-full border-2 border-slate-100 p-3 rounded-xl bg-slate-50 font-bold"
+                className="w-full border-2 border-slate-100 p-3.5 rounded-xl bg-slate-50 font-bold text-sm outline-none focus:border-blue-400 transition-all"
                 value={documentNumber}
                 onChange={(e) => setDocumentNumber(e.target.value)}
               />
             </div>
 
-            <div className="p-5 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
-              <input type="file" accept="image/*,.pdf" onChange={handleFileChange} className="w-full text-xs text-slate-500 file:bg-slate-800 file:text-white file:rounded-full file:border-0 file:px-4 file:py-1 font-bold" />
+            {/* File Input: Better padding and visibility on mobile */}
+            <div className="p-5 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 group hover:border-blue-300 transition-all">
+              <input 
+                type="file" 
+                accept="image/*,.pdf" 
+                onChange={handleFileChange} 
+                className="w-full text-[10px] md:text-xs text-slate-500 file:bg-slate-800 file:text-white file:rounded-full file:border-0 file:px-4 file:py-1.5 file:mr-2 font-bold cursor-pointer" 
+              />
             </div>
 
-            <div className="pt-4 space-y-3">
+            <div className="pt-2 space-y-3">
               <button
                 onClick={handleUpload}
                 disabled={loading}
-                className="w-full py-4 bg-blue-600 text-white rounded-xl font-black uppercase text-xs tracking-[2px] shadow-lg hover:bg-blue-700 disabled:bg-slate-300"
+                className="w-full py-4 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] md:text-xs tracking-[2px] shadow-lg hover:bg-blue-700 active:scale-[0.98] transition-all disabled:bg-slate-300"
               >
                 {loading ? "Uploading..." : "+ Upload This Document"}
               </button>
 
-              {/* FINISH BUTTON - Only shows if at least 1 doc is uploaded */}
+              {/* FINISH BUTTON */}
               {uploadedDocs.length > 0 && (
                 <button
                   onClick={() => navigate("/userdashboard")}
-                  className="w-full py-4 bg-black text-white rounded-xl font-black uppercase text-xs tracking-[2px] shadow-lg animate-bounce"
+                  className="w-full py-4 bg-black text-white rounded-xl font-black uppercase text-[10px] md:text-xs tracking-[2px] shadow-lg animate-pulse hover:bg-slate-900 transition-all"
                 >
                   Finish & Go to Dashboard
                 </button>
               )}
               
-              <button onClick={() => navigate("/userdashboard")} className="w-full text-[10px] font-black text-slate-400 uppercase">Skip for now</button>
+              <button 
+                onClick={() => navigate("/userdashboard")} 
+                className="w-full py-2 text-[10px] font-black text-slate-400 uppercase hover:text-slate-600 transition-all"
+              >
+                Skip for now
+              </button>
             </div>
           </div>
         </div>

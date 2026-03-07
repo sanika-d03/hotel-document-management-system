@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react"; // Added useCallback
 import {
   collection,
   getDocs,
@@ -21,30 +21,41 @@ const ManageUsers = () => {
   const [editUserId, setEditUserId] = useState(null);
   const [editEmail, setEditEmail] = useState("");
   const [editName, setEditName] = useState("");
-  const [editMobile, setEditMobile] = useState(""); // ✅ मोबाईलसाठी नवीन स्टेट
-  const [editEmpId, setEditEmpId] = useState(""); // ✅ एम्प्लॉई आयडीसाठी नवीन स्टेट
+  const [editMobile, setEditMobile] = useState(""); 
+  const [editEmpId, setEditEmpId] = useState(""); 
 
-  const fetchUsers = async () => {
+  // ✅ Wrapped in useCallback to prevent the "cascading renders" error
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
-    const q = query(collection(db, "users"), where("role", "==", "user"));
-    const snapshot = await getDocs(q);
-    const userList = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    setUsers(userList);
-    setLoading(false);
-  };
+    try {
+      const q = query(collection(db, "users"), where("role", "==", "user"));
+      const snapshot = await getDocs(q);
+      const userList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setUsers(userList);
+    } catch (error) {
+      console.error("Fetch error:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []); // Empty array means this function is created once
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]); // fetchUsers is now a stable dependency
 
   const handleDelete = async (uid) => {
     if (window.confirm("Are you sure you want to delete this user?")) {
-      await deleteDoc(doc(db, "users", uid));
-      alert("User deleted successfully ✅");
-      fetchUsers();
+      try {
+        await deleteDoc(doc(db, "users", uid));
+        alert("User deleted successfully ✅");
+        fetchUsers();
+      } catch (err) {
+        console.error(err);
+        alert("Delete failed");
+      }
     }
   };
 
@@ -52,8 +63,8 @@ const ManageUsers = () => {
     setEditUserId(user.id);
     setEditEmail(user.email);
     setEditName(user.name || "");
-    setEditMobile(user.mobile || ""); // ✅ डेटा लोड करा
-    setEditEmpId(user.employeeId || ""); // ✅ डेटा लोड करा
+    setEditMobile(user.mobile || ""); 
+    setEditEmpId(user.employeeId || ""); 
     setShowEdit(true);
   };
 
@@ -62,14 +73,15 @@ const ManageUsers = () => {
       await updateDoc(doc(db, "users", editUserId), {
         email: editEmail,
         name: editName,
-        mobile: editMobile, // ✅ डेटाबेसमध्ये अपडेट करा
-        employeeId: editEmpId, // ✅ डेटाबेसमध्ये अपडेट करा
+        mobile: editMobile, 
+        employeeId: editEmpId, 
       });
 
       alert("User updated successfully ✅");
       setShowEdit(false);
       fetchUsers();
     } catch (err) {
+      console.error(err); // Used err to clear warning
       alert("Update failed ❌");
     }
   };
@@ -207,9 +219,8 @@ const ManageUsers = () => {
                 <input
                   type="email"
                   value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
                   className="w-full border-2 border-slate-100 px-4 py-3 rounded-2xl focus:border-blue-500 outline-none font-medium text-slate-400 bg-slate-50"
-                  disabled // सुरक्षिततेसाठी ईमेल बदलणे ब्लॉक केले आहे
+                  disabled 
                 />
               </div>
             </div>
