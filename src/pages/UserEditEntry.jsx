@@ -11,7 +11,7 @@ import {
   deleteField,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import { supabase } from "../supabaseClient";
+import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { useNavigate } from "react-router-dom";
 
 const UserEditEntry = () => {
@@ -42,7 +42,6 @@ const UserEditEntry = () => {
           return {
             id: cDoc.id,
             ...creds,
-            // Ensure checkOut has a default value if it doesn't exist yet
             checkOut: creds.checkOut || new Date().toLocaleString(),
             documentList: docSnap.exists() ? docSnap.data().documents : {},
           };
@@ -73,7 +72,7 @@ const UserEditEntry = () => {
     if (!file || !selectedEntry) return;
 
     const docType = prompt(
-      "Enter Document Type (e.g., Aadhaar, PAN, License):",
+      "Enter Document Type (e.g., Aadhaar_Front, PAN, License_Back):",
     )?.toLowerCase();
     if (!docType) return;
     const docNum = prompt("Enter Document Number:");
@@ -82,21 +81,15 @@ const UserEditEntry = () => {
       setUploadingDoc(true);
       const fileExt = file.name.split(".").pop();
       const fileName = `${docType}_${Date.now()}.${fileExt}`;
-      const filePath = `${selectedEntry.id}/${fileName}`;
 
-      const { error } = await supabase.storage
-        .from("hotel-documents")
-        .upload(filePath, file);
-      if (error) throw error;
-
-      const { data } = supabase.storage
-        .from("hotel-documents")
-        .getPublicUrl(filePath);
+      const fileUrl = await uploadToCloudinary(
+        file,
+        `user-documents/${selectedEntry.id}`
+      );
 
       const newDocData = {
         documentNumber: docNum,
-        filePath,
-        fileUrl: data.publicUrl,
+        fileUrl,
         fileName,
         uploadedAt: new Date(),
       };
@@ -114,7 +107,7 @@ const UserEditEntry = () => {
       });
       alert("Document Added Successfully! ✅");
     } catch (err) {
-      console.error(err); // Used 'err' to clear warning
+      console.error(err);
       alert("Upload failed: " + err.message);
     } finally {
       setUploadingDoc(false);
@@ -122,7 +115,7 @@ const UserEditEntry = () => {
   };
 
   const removeDoc = async (type) => {
-    if (!window.confirm(`Permanently remove ${type}?`)) return;
+    if (!window.confirm(`Permanently remove ${type.replace("_", " ")}?`)) return;
     try {
       const docRef = doc(db, "userDocuments", selectedEntry.id);
       await updateDoc(docRef, { [`documents.${type}`]: deleteField() });
@@ -131,28 +124,26 @@ const UserEditEntry = () => {
       delete updatedDocs[type];
       setSelectedEntry({ ...selectedEntry, documentList: updatedDocs });
     } catch (err) {
-      console.error(err); // Used 'err' to clear warning
+      console.error(err);
       alert("Delete failed");
     }
   };
 
   const handleSaveAll = async () => {
     try {
-      // Prefixed with _ to indicate it is intentionally unused during destructuring
       const { documentList: _unused, ...credsToSave } = selectedEntry;
       const docRef = doc(db, "userCredentials", selectedEntry.id);
       await updateDoc(docRef, credsToSave);
       alert("Profile and Credentials Updated! ✅");
       fetchAllData();
     } catch (err) {
-      console.error(err); // Used 'err' to clear warning
+      console.error(err);
       alert("Update failed ❌");
     }
   };
 
   const handleFinalCheckout = async () => {
     if (!selectedEntry) return;
-
     if (!window.confirm(`Finalize Checkout for ${selectedEntry.guests[0]?.name}?`)) return;
 
     try {
@@ -171,7 +162,7 @@ const UserEditEntry = () => {
       setShowSidebar(true);
       fetchAllData();
     } catch (err) {
-      console.error(err); // Used 'err' to clear warning
+      console.error(err);
       alert("Submission failed ❌");
     }
   };
@@ -185,15 +176,10 @@ const UserEditEntry = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-slate-100 font-sans overflow-hidden">
-      {/* SIDEBAR: GUEST LIST */}
-      <div
-        className={`${showSidebar ? "flex" : "hidden"} md:flex w-full md:w-1/4 bg-white border-r border-slate-200 flex-col h-full`}
-      >
+      {/* SIDEBAR */}
+      <div className={`${showSidebar ? "flex" : "hidden"} md:flex w-full md:w-1/4 bg-white border-r border-slate-200 flex-col h-full`}>
         <div className="p-4 md:p-6 border-b bg-slate-50 flex justify-between items-center">
-          <button
-            onClick={() => navigate("/userdashboard")}
-            className="p-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
-          >
+          <button onClick={() => navigate("/userdashboard")} className="p-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7"/>
             </svg>
@@ -218,7 +204,7 @@ const UserEditEntry = () => {
         </div>
       </div>
 
-      {/* WORKSPACE: MASTER EDIT FORM */}
+      {/* WORKSPACE */}
       <div className={`${!showSidebar || selectedEntry ? "flex" : "hidden"} md:flex flex-1 overflow-y-auto bg-slate-50 relative`}>
         {selectedEntry ? (
           <div className="w-full max-w-4xl mx-auto p-5 md:p-10 space-y-6 md:space-y-8 pb-24">
@@ -241,7 +227,7 @@ const UserEditEntry = () => {
               </div>
             </div>
 
-            {/* SECTION 1: GUESTS */}
+            {/* GUESTS */}
             <div className="bg-white p-5 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
               <label className="block text-[10px] md:text-xs font-black text-blue-600 uppercase italic tracking-widest mb-4">1. Occupant Information</label>
               {selectedEntry.guests.map((g, i) => (
@@ -283,7 +269,7 @@ const UserEditEntry = () => {
               ))}
             </div>
 
-            {/* SECTION 2: STAY DETAILS */}
+            {/* STAY DETAILS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
                 <label className="text-[9px] font-black text-slate-400 uppercase italic">Room</label>
@@ -303,7 +289,7 @@ const UserEditEntry = () => {
               </div>
             </div>
 
-            {/* SECTION 3: DOCUMENTS */}
+            {/* DOCUMENTS - FIX APPLIED HERE */}
             <div className="bg-white p-5 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
               <div className="flex justify-between items-center border-b pb-4">
                 <label className="text-[10px] md:text-xs font-black text-blue-600 uppercase italic tracking-widest">2. Documents</label>
@@ -317,28 +303,29 @@ const UserEditEntry = () => {
                   <div key={type} className="group relative border border-slate-200 rounded-3xl overflow-hidden bg-white">
                     <div className="p-3 bg-slate-50 border-b flex justify-between items-center">
                       <div>
-                        <p className="text-[8px] font-black uppercase text-blue-600 italic">{type}</p>
-                        <p className="text-[10px] font-bold text-slate-800">{data.documentNumber}</p>
+                        <p className="text-[8px] font-black uppercase text-blue-600 italic">{type.replace("_", " ")}</p>
+                        <p className="text-[10px] font-bold text-slate-800">{data?.documentNumber}</p>
                       </div>
-                      <button onClick={() => removeDoc(type)} className="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded-full text-xs">✕</button>
+                      <button onClick={() => removeDoc(type)} className="w-7 h-7 flex items-center justify-center bg-red-50 text-red-500 rounded-full text-xs hover:bg-red-500 hover:text-white">✕</button>
                     </div>
                     <div className="p-2">
-                      {data.fileUrl.endsWith(".pdf") ? (
+                      {/* Optional chaining fixes the endsWith crash */}
+                      {data?.fileUrl?.endsWith(".pdf") ? (
                         <div className="h-32 md:h-48 bg-slate-100 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed">
                           <span className="text-2xl mb-1">📄</span>
-                          <p className="text-[8px] font-black text-slate-400 uppercase">PDF</p>
+                          <p className="text-[8px] font-black text-slate-400 uppercase">PDF Document</p>
                         </div>
                       ) : (
-                        <img src={data.fileUrl} alt={type} className="h-32 md:h-48 w-full object-cover rounded-2xl border border-slate-100" />
+                        <img src={data?.fileUrl} alt={type} className="h-32 md:h-48 w-full object-cover rounded-2xl border border-slate-100" />
                       )}
-                      <a href={data.fileUrl} target="_blank" rel="noreferrer" className="block text-center py-2 text-[9px] font-black text-blue-500 uppercase tracking-widest">View Full</a>
+                      <a href={data?.fileUrl} target="_blank" rel="noreferrer" className="block text-center py-2 text-[9px] font-black text-blue-500 uppercase tracking-widest">View Full</a>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* SECTION 4: ADDRESS & REMARKS */}
+            {/* ADDRESS & REMARKS */}
             <div className="bg-white p-5 md:p-8 rounded-3xl shadow-sm border border-slate-200 space-y-4">
               <label className="text-[10px] md:text-xs font-black text-blue-600 uppercase italic tracking-widest">3. Details</label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -347,13 +334,13 @@ const UserEditEntry = () => {
                   <textarea className="w-full p-4 bg-slate-50 rounded-2xl text-sm outline-none font-medium h-24 md:h-32 focus:ring-2 focus:ring-blue-400" value={selectedEntry.address} onChange={(e) => setSelectedEntry({ ...selectedEntry, address: e.target.value })} />
                 </div>
                 <div>
-                  <label className="text-[8px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Staff Remarks</label>
+                  <label className="text-[8px] font-bold text-slate-400 uppercase ml-2 mb-1 block">Vehicle Number</label>
                   <textarea className="w-full p-4 bg-slate-50 rounded-2xl text-sm outline-none font-medium h-24 md:h-32 focus:ring-2 focus:ring-blue-400" value={selectedEntry.remarks} onChange={(e) => setSelectedEntry({ ...selectedEntry, remarks: e.target.value })} />
                 </div>
               </div>
             </div>
 
-            {/* SECTION 5: FINALIZATION (CHECKOUT TIME) */}
+            {/* CHECKOUT */}
             <div className="bg-blue-600 p-5 md:p-8 rounded-3xl shadow-xl border border-blue-700 space-y-4">
               <label className="text-[10px] md:text-xs font-black text-white uppercase italic tracking-widest">4. Checkout Verification</label>
               <div className="bg-white/10 p-4 rounded-2xl border border-white/20">

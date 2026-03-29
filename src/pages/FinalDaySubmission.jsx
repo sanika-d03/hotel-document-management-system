@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { supabase } from "../supabaseClient";
+import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { useNavigate } from "react-router-dom";
 
 const FinalDaySubmission = () => {
@@ -38,19 +38,10 @@ const FinalDaySubmission = () => {
     try {
       setLoading(true);
       const file = formData.registerPhoto;
-      const fileName = `${Date.now()}-${file.name}`;
-
-      const { error } = await supabase.storage
-        .from("hotel-documents")
-        .upload(fileName, file);
-
-      if (error) throw error;
-
-      const { data } = supabase.storage
-        .from("hotel-documents")
-        .getPublicUrl(fileName);
-
-      const photoURL = data.publicUrl;
+      const photoURL = await uploadToCloudinary(
+  file,
+  `shift-register/${formData.name}`
+);
 
       await addDoc(collection(db, "employeeReports"), {
         name: formData.name,

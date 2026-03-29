@@ -1,4 +1,4 @@
-import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -24,25 +24,44 @@ const UserCredentials = () => {
     isSettled: false
   });
 
+  // --- REWRITTEN LOGIC FOR DATE-WISE SR NO ---
   useEffect(() => {
     const fetchLastSrNo = async () => {
       try {
-        const q = query(collection(db, "userCredentials"), orderBy("createdAt", "desc"), limit(1));
+        // Get Start and End of "Today"
+        const now = new Date();
+        const startOfToday = new Date(now.setHours(0, 0, 0, 0));
+        const endOfToday = new Date(now.setHours(23, 59, 59, 999));
+
+        // Query only for documents created TODAY
+        const q = query(
+          collection(db, "userCredentials"),
+          where("createdAt", ">=", startOfToday),
+          where("createdAt", "<=", endOfToday),
+          orderBy("createdAt", "desc"),
+          limit(1)
+        );
+
         const querySnapshot = await getDocs(q);
+        
         if (!querySnapshot.empty) {
           const lastData = querySnapshot.docs[0].data();
           const lastNumber = parseInt(lastData.srNo) || 0;
+          // Increment if found today
           setFormData(prev => ({ ...prev, srNo: (lastNumber + 1).toString() }));
         } else {
+          // Reset to 1 if it's a new day (no records found for today)
           setFormData(prev => ({ ...prev, srNo: "1" }));
         }
       } catch (error) {
+        console.error("SrNo Error:", error);
         setFormData(prev => ({ ...prev, srNo: "1" })); 
       }
     };
     fetchLastSrNo();
   }, []);
 
+  // --- KEEPING ALL YOUR ORIGINAL UI LOGIC ---
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -88,11 +107,10 @@ const UserCredentials = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-6 md:py-12 px-4 font-sans">
-      {/* Changed: Adjusted padding for mobile (p-5) vs desktop (p-8) */}
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-6 md:py-12 px-4 font-sans text-slate-900">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-gray-100 p-5 md:p-8">
 
-        {/* Header: Adjusted layout for smaller screens */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div className="flex items-center gap-3 md:gap-4">
             <button 
@@ -111,7 +129,7 @@ const UserCredentials = () => {
             </div>
           </div>
           <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 self-end sm:self-auto">
-            <p className="text-[8px] md:text-[10px] text-blue-600 font-black uppercase tracking-widest text-center">Auto Sr No</p>
+            <p className="text-[8px] md:text-[10px] text-blue-600 font-black uppercase tracking-widest text-center">Daily Sr No</p>
             <span className="text-blue-700 font-bold text-lg md:text-xl block text-center">#{formData.srNo}</span>
           </div>
         </div>
@@ -130,13 +148,11 @@ const UserCredentials = () => {
                             {index === 0 ? "PRIMARY GUEST" : `COMPANION ${index + 1}`}
                         </div>
                         
-                        {/* Changed: Stack Name/Age on mobile, side-by-side on desktop */}
                         <div className="flex flex-col md:flex-row gap-3">
                             <input name="name" placeholder="Full Name" value={guest.name} onChange={(e) => handleGuestChange(index, e)} className="w-full md:flex-[2] p-3 border rounded-xl outline-none bg-white font-bold uppercase focus:ring-2 focus:ring-blue-400" required />
                             <input name="age" type="number" placeholder="Age" value={guest.age} onChange={(e) => handleGuestChange(index, e)} className="w-full md:flex-1 p-3 border rounded-xl outline-none bg-white font-bold focus:ring-2 focus:ring-blue-400" required />
                         </div>
 
-                        {/* Changed: Responsive grid for Gender/RegNo */}
                         <div className={`grid ${index === 0 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"} gap-3`}>
                             <select name="gender" value={guest.gender} onChange={(e) => handleGuestChange(index, e)} className="p-3 border rounded-xl outline-none bg-white font-bold focus:ring-2 focus:ring-blue-400" required >
                                 <option value="">Gender</option>
@@ -184,7 +200,6 @@ const UserCredentials = () => {
                 <button type="button" onClick={addMobileField} className="text-blue-600 text-[10px] md:text-xs font-black uppercase tracking-widest mt-1">+ Add Alternative Number</button>
               </div>
 
-              {/* Changed: Stack Room/Purpose on mobile */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black text-slate-500 uppercase mb-2 tracking-widest">Room No.</label>
@@ -215,11 +230,11 @@ const UserCredentials = () => {
                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Check-In Time</label>
                 <input name="checkIn" type="datetime-local" onChange={handleChange} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none font-bold" required />
               </div>
-              <textarea name="remarks" placeholder="Special remarks..." onChange={handleChange} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl h-28 outline-none"></textarea>
+              <textarea name="remarks" placeholder="Enter Vehicle Number (Ex: MH12AB1234)" onChange={handleChange} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl h-28 outline-none"></textarea>
             </div>
           )}
 
-          {/* Footer Buttons: Switched to slightly smaller text for narrow screens */}
+          {/* Footer Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 pt-6 border-t border-slate-100">
             {page > 1 && (
               <button type="button" onClick={() => setPage(page - 1)} className="order-2 sm:order-1 flex-1 py-4 border-2 border-slate-200 rounded-xl font-black text-slate-500 hover:bg-slate-50 transition-all uppercase text-[10px] md:text-xs tracking-widest">Back</button>

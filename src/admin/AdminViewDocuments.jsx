@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { db } from "../firebase";
-import { supabase } from "../supabaseClient";
+
 import jsPDF from "jspdf"; // ✅ ADDED
 
 // ✅ UI-only label mapping (NO data change)
@@ -92,33 +93,29 @@ const AdminViewDocuments = () => {
     }
   };
 
-  // ❌ EXISTING: Reject document
-  const handleReject = async (docType, fileUrl) => {
-    const confirm = window.confirm(
-      `Are you sure you want to reject ${docType}?`
-    );
-    if (!confirm) return;
+  const handleReject = async (docType) => {
+  const confirm = window.confirm(
+    `Are you sure you want to reject ${docType}?`
+  );
+  if (!confirm) return;
 
-    try {
-      const path = fileUrl.split("/storage/v1/object/public/")[1];
-      await supabase.storage.from("hotel-documents").remove([path]);
+  try {
+    const ref = doc(db, "userDocuments", userId);
+    const snap = await getDoc(ref);
 
-      const ref = doc(db, "userDocuments", userId);
-      const snap = await getDoc(ref);
-
-      if (snap.exists()) {
-        const updatedDocs = { ...snap.data().documents };
-        delete updatedDocs[docType];
-        await updateDoc(ref, { documents: updatedDocs });
-      }
-
-      setDocuments((prev) => prev.filter((d) => d.type !== docType));
-      alert("Document rejected & deleted ❌");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to reject document");
+    if (snap.exists()) {
+      const updatedDocs = { ...snap.data().documents };
+      delete updatedDocs[docType];
+      await updateDoc(ref, { documents: updatedDocs });
     }
-  };
+
+    setDocuments((prev) => prev.filter((d) => d.type !== docType));
+    alert("Document rejected ❌");
+  } catch (err) {
+    console.error(err);
+    alert("Failed to reject document");
+  }
+};
 
   if (loading)
     return <p className="text-center mt-10">Loading documents...</p>;
@@ -197,7 +194,7 @@ const AdminViewDocuments = () => {
               </button>
 
               <button
-                onClick={() => handleReject(doc.type, doc.fileUrl)}
+                onClick={() => handleReject(doc.type)}
                 className="w-full text-red-500 text-sm"
               >
                 Reject / Delete
